@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>攒钱计划｜2026.08 - 2027.01</title>
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --primary:#111827;
+      --green:#10b981;
+      --red:#ef4444;
+      --blue:#2563eb;
+      --soft:#eef2ff;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif;
+      background:linear-gradient(180deg,#f7f8fc 0%,#eef2f7 100%);
+      color:var(--text);
+      min-height:100vh;
+    }
+    .wrap{max-width:980px;margin:0 auto;padding:22px 16px 48px}
+    .hero{
+      background:linear-gradient(135deg,#111827,#334155);
+      color:#fff;
+      border-radius:24px;
+      padding:24px;
+      box-shadow:0 18px 45px rgba(17,24,39,.18);
+      margin-bottom:18px;
+    }
+    .hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+    .hero h1{margin:0;font-size:26px}
+    .hero p{margin:8px 0 0;color:#cbd5e1;font-size:14px}
+    .goal{font-size:13px;color:#cbd5e1;text-align:right}
+    .goal strong{display:block;color:#fff;font-size:28px;margin-top:2px}
+    .progress-box{margin-top:22px}
+    .progress-info{display:flex;justify-content:space-between;font-size:13px;color:#dbeafe;margin-bottom:8px}
+    .progress{
+      height:12px;border-radius:999px;background:rgba(255,255,255,.16);overflow:hidden
+    }
+    .progress > div{
+      height:100%;width:0;background:linear-gradient(90deg,#60a5fa,#34d399);
+      border-radius:999px;transition:.35s ease
+    }
+    .grid{
+      display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px
+    }
+    .stat,.card{
+      background:var(--card);border:1px solid rgba(229,231,235,.8);
+      box-shadow:0 8px 24px rgba(15,23,42,.05);border-radius:18px
+    }
+    .stat{padding:18px}
+    .stat .label{font-size:13px;color:var(--muted);margin-bottom:7px}
+    .stat .num{font-size:24px;font-weight:800;letter-spacing:-.5px}
+    .income{color:var(--green)}
+    .expense{color:var(--red)}
+    .balance{color:var(--blue)}
+    .card{padding:18px;margin-bottom:18px}
+    .card h2{font-size:18px;margin:0 0 14px}
+    .form{
+      display:grid;grid-template-columns:1.1fr .9fr .9fr 1.4fr auto;gap:10px;align-items:end
+    }
+    label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px 2px}
+    input,select,button{
+      width:100%;height:44px;border-radius:12px;border:1px solid var(--line);
+      font-size:15px;background:#fff
+    }
+    input,select{padding:0 12px;outline:none}
+    input:focus,select:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.16)}
+    button{border:0;background:var(--primary);color:#fff;padding:0 16px;font-weight:700;cursor:pointer}
+    button:active{transform:translateY(1px)}
+    .months{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+    .month{
+      background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:13px
+    }
+    .month b{display:block;font-size:13px;margin-bottom:7px}
+    .month .mnum{font-size:18px;font-weight:800}
+    .month small{display:block;color:var(--muted);margin-top:5px}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse;min-width:660px}
+    th,td{padding:12px 10px;border-bottom:1px solid var(--line);font-size:14px;text-align:left}
+    th{font-size:12px;color:var(--muted);font-weight:600}
+    .badge{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
+    .badge.in{background:#ecfdf5;color:#059669}
+    .badge.out{background:#fef2f2;color:#dc2626}
+    .del{
+      background:#fff;color:#dc2626;border:1px solid #fecaca;height:32px;width:auto;padding:0 10px;font-size:12px
+    }
+    .empty{text-align:center;color:var(--muted);padding:24px}
+    .footer-note{color:var(--muted);font-size:12px;text-align:center;margin-top:8px}
+    .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+    .ghost{background:#fff;color:#374151;border:1px solid var(--line);width:auto;height:36px;font-size:12px}
+
+    .chart-wrap{
+      position:relative;
+      width:100%;
+      height:300px;
+      padding:12px 4px 0;
+    }
+    .chart{
+      height:100%;
+      display:flex;
+      align-items:stretch;
+      gap:12px;
+    }
+    .chart-y{
+      width:48px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      text-align:right;
+      color:var(--muted);
+      font-size:11px;
+      padding:0 6px 34px 0;
+      flex:0 0 48px;
+    }
+    .chart-main{
+      position:relative;
+      flex:1;
+      min-width:0;
+      display:flex;
+      align-items:flex-end;
+      gap:10px;
+      padding:0 4px 34px;
+      border-left:1px solid var(--line);
+      border-bottom:1px solid var(--line);
+      background:
+        linear-gradient(to bottom,
+          transparent 24.8%, rgba(229,231,235,.75) 25%, transparent 25.2%,
+          transparent 49.8%, rgba(229,231,235,.75) 50%, transparent 50.2%,
+          transparent 74.8%, rgba(229,231,235,.75) 75%, transparent 75.2%);
+    }
+    .chart-group{
+      flex:1;
+      min-width:0;
+      height:100%;
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+      gap:5px;
+      position:relative;
+    }
+    .chart-bar{
+      width:min(26px,38%);
+      min-height:0;
+      border-radius:7px 7px 3px 3px;
+      transition:height .35s ease;
+      position:relative;
+    }
+    .chart-bar.income-bar{background:var(--green)}
+    .chart-bar.expense-bar{background:var(--red)}
+    .chart-bar:hover::after{
+      content:attr(data-value);
+      position:absolute;
+      bottom:calc(100% + 6px);
+      left:50%;
+      transform:translateX(-50%);
+      white-space:nowrap;
+      background:#111827;
+      color:#fff;
+      border-radius:7px;
+      padding:5px 7px;
+      font-size:10px;
+      z-index:5;
+    }
+    .chart-label{
+      position:absolute;
+      bottom:-26px;
+      left:50%;
+      transform:translateX(-50%);
+      font-size:11px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .chart-legend{
+      display:flex;
+      justify-content:center;
+      gap:18px;
+      margin-top:10px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .legend-item{display:flex;align-items:center;gap:6px}
+    .legend-dot{
+      width:9px;height:9px;border-radius:50%;
+      display:inline-block;
+    }
+    .legend-dot.income-dot{background:var(--green)}
+    .legend-dot.expense-dot{background:var(--red)}
+    .chart-empty{
+      height:220px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+      font-size:14px;
+    }
+
+    @media (max-width:760px){
+      .wrap{padding:14px 12px 32px}
+      .hero{padding:20px;border-radius:20px}
+      .hero h1{font-size:22px}
+      .grid{grid-template-columns:1fr}
+      .form{
+        grid-template-columns:1fr;
+        gap:14px;
+      }
+      .form > div{
+        min-width:0;
+        width:100%;
+      }
+      .form .wide,
+      .form .submit{
+        grid-column:auto;
+      }
+      .form input,
+      .form select,
+      .form button{
+        width:100%;
+        max-width:100%;
+        min-width:0;
+      }
+      .form input[type="date"]{
+        display:block;
+        -webkit-appearance:none;
+        appearance:none;
+      }
+      .months{grid-template-columns:repeat(2,1fr)}
+      .goal{text-align:left}
+      .chart-wrap{height:260px;padding-left:0;padding-right:0}
+      .chart{gap:4px}
+      .chart-y{width:38px;flex-basis:38px;font-size:9px;padding-right:4px}
+      .chart-main{gap:5px;padding-left:3px;padding-right:3px}
+      .chart-group{gap:3px}
+      .chart-bar{width:min(18px,40%)}
+      .chart-label{font-size:9px}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="hero-top">
+      <div>
+        <h1>我的攒钱计划</h1>
+        <p>2026年8月 ～ 2027年1月 · 目标存下 15,000 元</p>
+      </div>
+      <div class="goal">目标金额<strong>¥15,000</strong></div>
+    </div>
+    <div class="progress-box">
+      <div class="progress-info">
+        <span id="progressText">已完成 0%</span>
+        <span id="remainText">还差 ¥15,000</span>
+      </div>
+      <div class="progress"><div id="progressBar"></div></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="stat">
+      <div class="label">累计收入</div>
+      <div class="num income" id="incomeTotal">¥0.00</div>
+    </div>
+    <div class="stat">
+      <div class="label">累计支出</div>
+      <div class="num expense" id="expenseTotal">¥0.00</div>
+    </div>
+    <div class="stat">
+      <div class="label">当前总金额</div>
+      <div class="num balance" id="balanceTotal">¥0.00</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>添加一笔记录</h2>
+    <form class="form" id="recordForm">
+      <div>
+        <label>日期</label>
+        <input type="date" id="date" min="2026-08-01" max="2027-01-31" required>
+      </div>
+      <div>
+        <label>类型</label>
+        <select id="type">
+          <option value="income">收入</option>
+          <option value="expense">支出</option>
+        </select>
+      </div>
+      <div>
+        <label>金额（元）</label>
+        <input type="number" id="amount" min="0.01" step="0.01" placeholder="例如 500" required>
+      </div>
+      <div class="wide">
+        <label>备注</label>
+        <input type="text" id="note" maxlength="30" placeholder="工资、吃饭、购物等">
+      </div>
+      <div class="submit">
+        <button type="submit">添加</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>每月净存金额</h2>
+    <div class="months" id="months"></div>
+  </section>
+
+  <section class="card">
+    <h2>每月收支图表</h2>
+    <div id="chartContainer"></div>
+    <div class="chart-legend">
+      <span class="legend-item"><i class="legend-dot income-dot"></i>收入</span>
+      <span class="legend-item"><i class="legend-dot expense-dot"></i>支出</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>收支明细</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>类型</th>
+            <th>金额</th>
+            <th>备注</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody"></tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <button class="ghost" id="clearBtn" type="button">清空全部记录</button>
+    </div>
+  </section>
+
+  <div class="footer-note">数据已保存到 Cloudflare D1 云端数据库，换设备访问也可以读取同一份记录。</div>
+</div>
+
+<script>
+  const GOAL = 15000;
+  const API = '/api/records';
+  const monthKeys = ['2026-08','2026-09','2026-10','2026-11','2026-12','2027-01'];
+  const monthLabels = ['2026年8月','2026年9月','2026年10月','2026年11月','2026年12月','2027年1月'];
+
+  let records = [];
+
+  const fmt = n => '¥' + Number(n).toLocaleString('zh-CN', {
+    minimumFractionDigits:2,
+    maximumFractionDigits:2
+  });
+
+  async function apiRequest(url, options = {}) {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      ...options
+    });
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (_) {}
+
+    if (!response.ok) {
+      throw new Error(data.error || '服务器请求失败');
+    }
+    return data;
+  }
+
+  async function loadRecords() {
+    try {
+      const data = await apiRequest(API);
+      records = Array.isArray(data.records) ? data.records.map(r => ({
+        ...r,
+        amount: Number(r.amount)
+      })) : [];
+      render();
+    } catch (err) {
+      console.error(err);
+      alert('读取服务器数据失败：' + err.message);
+    }
+  }
+
+  function render(){
+    const income = records
+      .filter(r=>r.type==='income')
+      .reduce((s,r)=>s+Number(r.amount),0);
+
+    const expense = records
+      .filter(r=>r.type==='expense')
+      .reduce((s,r)=>s+Number(r.amount),0);
+
+    const balance = income - expense;
+
+    document.getElementById('incomeTotal').textContent = fmt(income);
+    document.getElementById('expenseTotal').textContent = fmt(expense);
+    document.getElementById('balanceTotal').textContent = fmt(balance);
+
+    const pct = Math.max(0, Math.min(100, balance / GOAL * 100));
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressText').textContent = '已完成 ' + pct.toFixed(1) + '%';
+    document.getElementById('remainText').textContent =
+      balance >= GOAL ? '已达到目标 🎉' : '还差 ' + fmt(GOAL - balance);
+
+    const monthsEl = document.getElementById('months');
+    monthsEl.innerHTML = monthKeys.map((key,i)=>{
+      const arr = records.filter(r=>String(r.date).startsWith(key));
+      const ins = arr.filter(r=>r.type==='income').reduce((s,r)=>s+Number(r.amount),0);
+      const outs = arr.filter(r=>r.type==='expense').reduce((s,r)=>s+Number(r.amount),0);
+      const net = ins-outs;
+      return `<div class="month">
+        <b>${monthLabels[i]}</b>
+        <div class="mnum">${fmt(net)}</div>
+        <small>收入 ${fmt(ins)} · 支出 ${fmt(outs)}</small>
+      </div>`;
+    }).join('');
+
+    renderChart();
+
+    const body = document.getElementById('recordsBody');
+    const sorted = [...records].sort((a,b)=>
+      String(b.date).localeCompare(String(a.date)) || Number(b.id)-Number(a.id)
+    );
+
+    if(!sorted.length){
+      body.innerHTML = `<tr><td colspan="5" class="empty">还没有记录，先添加第一笔收入或支出吧。</td></tr>`;
+    } else {
+      body.innerHTML = sorted.map(r=>`
+        <tr>
+          <td>${escapeHtml(r.date)}</td>
+          <td><span class="badge ${r.type==='income'?'in':'out'}">${r.type==='income'?'收入':'支出'}</span></td>
+          <td class="${r.type==='income'?'income':'expense'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</td>
+          <td>${escapeHtml(r.note || '-')}</td>
+          <td><button class="del" onclick="removeRecord(${Number(r.id)})">删除</button></td>
+        </tr>
+      `).join('');
+    }
+  }
+
+
+  function renderChart(){
+    const container = document.getElementById('chartContainer');
+    if(!container) return;
+
+    const monthData = monthKeys.map((key, i) => {
+      const arr = records.filter(r => String(r.date).startsWith(key));
+      const income = arr
+        .filter(r => r.type === 'income')
+        .reduce((s,r) => s + Number(r.amount), 0);
+      const expense = arr
+        .filter(r => r.type === 'expense')
+        .reduce((s,r) => s + Number(r.amount), 0);
+
+      return {
+        label: monthLabels[i].replace('2026年','').replace('2027年',''),
+        income,
+        expense
+      };
+    });
+
+    const maxValue = Math.max(
+      0,
+      ...monthData.flatMap(m => [m.income, m.expense])
+    );
+
+    if(maxValue <= 0){
+      container.innerHTML = '<div class="chart-empty">添加收支记录后，这里会自动生成图表。</div>';
+      return;
+    }
+
+    const niceMax = Math.ceil(maxValue / 500) * 500 || 500;
+    const ticks = [niceMax, niceMax * .75, niceMax * .5, niceMax * .25, 0];
+
+    const bars = monthData.map(m => {
+      const incomeHeight = Math.max(0, Math.min(100, m.income / niceMax * 100));
+      const expenseHeight = Math.max(0, Math.min(100, m.expense / niceMax * 100));
+
+      return `
+        <div class="chart-group">
+          <div class="chart-bar income-bar"
+               style="height:${incomeHeight}%"
+               data-value="收入 ${fmt(m.income)}"></div>
+          <div class="chart-bar expense-bar"
+               style="height:${expenseHeight}%"
+               data-value="支出 ${fmt(m.expense)}"></div>
+          <span class="chart-label">${m.label}</span>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart">
+          <div class="chart-y">
+            ${ticks.map(v => `<span>${v >= 1000 ? (v/1000).toFixed(v%1000===0?0:1)+'k' : Math.round(v)}</span>`).join('')}
+          </div>
+          <div class="chart-main">${bars}</div>
+        </div>
+      </div>`;
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, s => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[s]));
+  }
+
+  async function removeRecord(id){
+    if (!confirm('确定删除这条记录吗？')) return;
+
+    try {
+      await apiRequest(`${API}?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+      await loadRecords();
+    } catch (err) {
+      alert('删除失败：' + err.message);
+    }
+  }
+
+  document.getElementById('recordForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+
+    const date = document.getElementById('date').value;
+    const type = document.getElementById('type').value;
+    const amount = parseFloat(document.getElementById('amount').value);
+    const note = document.getElementById('note').value.trim();
+    const submitButton = e.target.querySelector('button[type="submit"]');
+
+    if(!date || isNaN(amount) || amount <= 0) return;
+
+    if(date < '2026-08-01' || date > '2027-01-31'){
+      alert('日期请选择 2026年8月1日 到 2027年1月31日。');
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = '保存中...';
+
+    try {
+      await apiRequest(API, {
+        method: 'POST',
+        body: JSON.stringify({ date, type, amount, note })
+      });
+
+      e.target.reset();
+      document.getElementById('date').value = date;
+      await loadRecords();
+    } catch (err) {
+      alert('保存失败：' + err.message);
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = '添加';
+    }
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', async ()=>{
+    if(!confirm('确定要清空服务器里的全部收支记录吗？此操作不能恢复。')) return;
+
+    try {
+      await apiRequest(`${API}?all=1`, {
+        method: 'DELETE'
+      });
+      await loadRecords();
+    } catch (err) {
+      alert('清空失败：' + err.message);
+    }
+  });
+
+  const today = new Date();
+  const iso = today.toISOString().slice(0,10);
+  document.getElementById('date').value =
+    iso >= '2026-08-01' && iso <= '2027-01-31' ? iso : '2026-08-01';
+
+  loadRecords();
+</script>
+</body>
+</html>
