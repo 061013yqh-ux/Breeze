@@ -35,14 +35,18 @@ function outputText(data) {
 
 function cfDiagnostics(context) {
   const cf = context.request.cf || {};
+  // 仅返回环境变量/绑定的“名称”，绝不返回任何 Secret 的值。
+  const envKeys = Object.keys(context.env || {}).sort();
   return {
     country: cf.country || null,
     colo: cf.colo || null,
     city: cf.city || null,
     region: cf.region || null,
     timezone: cf.timezone || null,
-    deepseek_key_configured: Boolean(context.env.DEEPSEEK_API_KEY),
-    model: context.env.DEEPSEEK_MODEL || "deepseek-v4-flash"
+    deepseek_key_configured: Boolean(context.env?.DEEPSEEK_API_KEY),
+    model: context.env?.DEEPSEEK_MODEL || "deepseek-v4-flash",
+    env_keys: envKeys,
+    expected_key_name: "DEEPSEEK_API_KEY"
   };
 }
 
