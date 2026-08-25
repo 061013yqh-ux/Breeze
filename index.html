@@ -361,7 +361,16 @@
     .ai-result{margin-top:12px;padding:14px;border-radius:14px;background:#f8fafc;border:1px solid var(--line);white-space:pre-wrap;line-height:1.65;font-size:14px;display:none}
     .ai-tip{margin-top:8px;color:var(--muted);font-size:12px}
     @media(max-width:760px){.ai-box{flex-direction:column}.ai-send{width:100%;min-height:44px}}
-  </style>
+  
+    .manager-card{background:linear-gradient(180deg,#fff,#f8fafc);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:18px;box-shadow:0 8px 24px rgba(15,23,42,.05)}
+    .manager-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .manager-head h2{margin:0;font-size:18px}
+    .manager-status{font-size:12px;color:var(--muted)}
+    .manager-report{line-height:1.72;font-size:14px;min-height:72px}
+    .manager-refresh{width:auto;height:34px;padding:0 12px;font-size:12px;background:#fff;color:#374151;border:1px solid var(--line)}
+    .manager-meta{margin-top:10px;font-size:11px;color:var(--muted)}
+
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -457,13 +466,25 @@
     </form>
   </section>
 
+  <section class="manager-card">
+    <div class="manager-head">
+      <div>
+        <h2>🧠 自动财务体检</h2>
+        <div class="manager-status" id="managerStatus">打开页面后会自动读取数据库并分析</div>
+      </div>
+      <button type="button" class="manager-refresh" id="managerRefreshBtn">立即分析</button>
+    </div>
+    <div class="manager-report" id="managerReport">正在等待第一次自动分析…</div>
+    <div class="manager-meta" id="managerMeta">记账、删除记录或修改计划后会自动重新分析。</div>
+  </section>
+
   <section class="card">
-    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v11</span></h2>
+    <h2>🤖 AI 财务管家 <span style="font-size:12px;color:#6b7280;font-weight:600">v13 · 全自动</span></h2>
     <div class="ai-box">
       <textarea id="aiInput" placeholder="例如：今天收入500 / 午饭花了35 / 昨天工资收入2000 / 分析最近5天"></textarea>
       <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
     </div>
-    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；可直接输入“今天收入500”“午饭花了35”“昨天工资收入2000”。AI 请求成功后会自动记账并刷新明细，并会结合当天收支给出一条简短、实用的今日建议。计划期外的记录也会保存并显示，但不会计入当前计划的月度统计。当前 AI 后端使用 DeepSeek API。v11 记账统一通过收支接口写入 D1。</div>
+    <div class="ai-tip">AI 会直接读取 Cloudflare D1 数据库和计划设置；打开页面、记账、删除记录或修改计划后都会自动分析。你也可以继续在下面聊天；可直接输入“今天收入500”“午饭花了35”“昨天工资收入2000”。AI 请求成功后会自动记账并刷新明细，并会结合当天收支给出一条简短、实用的今日建议。计划期外的记录也会保存并显示，但不会计入当前计划的月度统计。当前 AI 后端使用 DeepSeek API。v12 支持中文数字金额，例如“八块”“十二元”“两百五十块”。</div>
     <div class="ai-result" id="aiResult"></div>
     <div class="advice-card"><div class="advice-title">💡 今日建议</div><div class="advice-text" id="dailyAdvice">先记录今天的收支，我会根据真实数据给你一个小建议。</div></div>
   </section>
@@ -513,6 +534,10 @@
 
 <script>
   const API = '/api/records';
+  let managerTimer = null;
+  let managerRunning = false;
+  let lastManagerSignature = '';
+
 
   let records = [];
   let recordFilter = 'all';
@@ -595,6 +620,64 @@
     return data;
   }
 
+
+  function managerSignature(){
+    const latest = [...records].sort((a,b)=>Number(b.id)-Number(a.id))[0];
+    return JSON.stringify({
+      count: records.length,
+      latestId: latest?.id || 0,
+      latestDate: latest?.date || '',
+      latestAmount: latest?.amount || 0,
+      goal: plan.goal,
+      start: plan.start_month,
+      end: plan.end_month
+    });
+  }
+
+  function scheduleManagerAnalysis(force=false){
+    clearTimeout(managerTimer);
+    managerTimer = setTimeout(()=>runAutoManager(force), force ? 50 : 450);
+  }
+
+  async function runAutoManager(force=false){
+    if(managerRunning) return;
+    const sig = managerSignature();
+    if(!force && sig === lastManagerSignature) return;
+
+    const reportEl = document.getElementById('managerReport');
+    const statusEl = document.getElementById('managerStatus');
+    const metaEl = document.getElementById('managerMeta');
+    const btn = document.getElementById('managerRefreshBtn');
+    if(!reportEl) return;
+
+    managerRunning = true;
+    if(btn){ btn.disabled=true; btn.textContent='分析中...'; }
+    statusEl.textContent='AI 正在读取数据库并分析今日、本月和历史趋势…';
+
+    try{
+      const data = await apiRequest('/api/ai', {
+        method:'POST',
+        body:JSON.stringify({ mode:'auto_manager' })
+      });
+      const report = data.report || '暂时没有生成分析。';
+      reportEl.innerHTML = renderAIText(report);
+      lastManagerSignature = sig;
+      statusEl.textContent='已自动分析 · 数据库已同步';
+      metaEl.textContent='上次分析：' + new Date().toLocaleString('zh-CN', {hour12:false});
+
+      const adviceMatch = report.match(/💡\s*今日建议[:：]\s*(.+?)(?:\n|$)/);
+      if(adviceMatch && document.getElementById('dailyAdvice')){
+        document.getElementById('dailyAdvice').textContent = adviceMatch[1].trim();
+      }
+    }catch(err){
+      statusEl.textContent='自动分析失败';
+      reportEl.textContent='自动财务体检失败：' + err.message;
+    }finally{
+      managerRunning=false;
+      if(btn){ btn.disabled=false; btn.textContent='立即分析'; }
+    }
+  }
+
   async function loadRecords() {
     try {
       const data = await apiRequest(API);
@@ -613,6 +696,7 @@
 
       updatePlanUI();
       render();
+      scheduleManagerAnalysis();
     } catch (err) {
       console.error(err);
       alert('读取服务器数据失败：' + err.message);
@@ -894,6 +978,7 @@
 
       updatePlanUI();
       render();
+      scheduleManagerAnalysis(true);
       status.textContent = '计划已保存到云端。';
       setTimeout(()=>{ status.textContent = ''; }, 2500);
     }catch(err){
@@ -935,10 +1020,10 @@
       let reply = data.reply || 'AI 没有返回内容。';
       const backendVersion = data.backend_version || '旧版/未知';
       const parsed = Array.isArray(data.parsed_records) ? data.parsed_records : [];
-      const looksLikeBookkeeping = /\d/.test(message) && /(收入|赚|工资|支出|花|消费|午饭|晚饭|早餐|打车|购物|外卖|奶茶|房租|话费|网费|加油|停车|吃饭)/.test(message);
+      const looksLikeBookkeeping = /[\d零〇一二两三四五六七八九十百千万]/.test(message) && /(收入|赚|工资|支出|花|消费|午饭|晚饭|早餐|打车|购物|外卖|奶茶|房租|话费|网费|加油|停车|吃饭)/.test(message);
 
-      if(backendVersion !== 'v11'){
-        reply = `⚠️ 当前网页是 v11，但 AI 后端仍是 ${backendVersion}。请确认 GitHub 的 functions/api/ai.js 也覆盖成 v11。\n\n` + reply;
+      if(backendVersion !== 'v13'){
+        reply = `⚠️ 当前网页是 v13，但 AI 后端仍是 ${backendVersion}。请确认 GitHub 的 functions/api/ai.js 也覆盖成 v13。\n\n` + reply;
       }
 
       const saved = [];
@@ -1007,6 +1092,8 @@
       btn.textContent = '发送分析';
     }
   }
+
+  document.getElementById('managerRefreshBtn').addEventListener('click', ()=>scheduleManagerAnalysis(true));
 
   document.getElementById('aiSendBtn').addEventListener('click', askIncomeAI);
   document.getElementById('aiInput').addEventListener('keydown', e=>{
