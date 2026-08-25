@@ -1,3 +1,5 @@
+const BACKEND_VERSION = "v10.1";
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -87,6 +89,35 @@ function extractRecords(message) {
     }
   }
 
+
+  // 兜底：处理没有逗号分隔的紧凑表达，例如“今天收入500支出35”
+  if (!out.length || (out.length === 1 && /收入|赚|工资/.test(raw) && /支出|花|消费|午饭|晚饭|打车|购物/.test(raw))) {
+    const compact = raw.replace(/\s+/g, "");
+    const patterns = [
+      { type: "income", re: /(?:收入|赚了|赚到|赚|工资|到账|收款)[^\d]{0,8}(\d+(?:\.\d{1,2})?)/g },
+      { type: "expense", re: /(?:支出|花了|花费|消费|付款|付了|午饭|晚饭|早餐|打车|购物|外卖|奶茶|房租|话费|网费|加油|停车)[^\d]{0,8}(\d+(?:\.\d{1,2})?)/g }
+    ];
+    for (const p of patterns) {
+      for (const m of compact.matchAll(p.re)) {
+        const amount = Number(m[1]);
+        if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) continue;
+        let date = localDateISO();
+        if (/昨天|昨日/.test(compact)) date = localDateOffset(-1);
+        else if (/前天/.test(compact)) date = localDateOffset(-2);
+        const before = compact.slice(0, m.index);
+        let note = p.type === "income" ? "AI收入助手" : "AI支出助手";
+        const noteMatch = before.match(/(?:但是|不过|可是|然后|并且|以及)?([\u4e00-\u9fa5]{1,10})(?:花了|花费|消费|付款|付了)?$/);
+        if (p.type === "expense" && noteMatch) {
+          const candidate = noteMatch[1]
+            .replace(/今天|今日|昨天|昨日|前天|收入|支出|但是|不过|可是|然后|并且|以及/g, "")
+            .trim();
+          if (candidate) note = candidate.slice(-10);
+        }
+        out.push({ date, type: p.type, amount, note });
+      }
+    }
+  }
+
   // 去掉完全重复的识别结果
   const seen = new Set();
   return out.filter(r => {
@@ -120,6 +151,7 @@ function cfDiagnostics(context) {
 export async function onRequestGet(context) {
   return json({
     ok: true,
+    backend_version: BACKEND_VERSION,
     diagnostic: cfDiagnostics(context),
     note: "此诊断不会返回 DEEPSEEK_API_KEY 的内容。"
   });
@@ -130,6 +162,7 @@ export async function onRequestPost(context) {
     if (!context.env.DEEPSEEK_API_KEY) {
       return json({
         ok: false,
+        backend_version: BACKEND_VERSION,
         error: "还没有配置 DEEPSEEK_API_KEY",
         diagnostic: cfDiagnostics(context)
       }, 500);
@@ -181,6 +214,7 @@ export async function onRequestPost(context) {
     if (!response.ok) {
       return json({
         ok: false,
+        backend_version: BACKEND_VERSION,
         error: data?.error?.message || "DeepSeek API 请求失败",
         deepseek: {
           status: response.status,
@@ -210,6 +244,9 @@ export async function onRequestPost(context) {
 
     return json({
       ok: true,
+      backend_version: BACKEND_VERSION,
+      parsed_count: pendingRecords.length,
+      parsed_records: pendingRecords,
       reply: outputText(data) || "AI 暂时没有返回文字。",
       recorded,
       diagnostic: cfDiagnostics(context)
@@ -217,6 +254,7 @@ export async function onRequestPost(context) {
   } catch (error) {
     return json({
       ok: false,
+      backend_version: BACKEND_VERSION,
       error: "AI 接口错误：" + error.message,
       diagnostic: cfDiagnostics(context)
     }, 500);
