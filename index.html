@@ -299,6 +299,14 @@
       }
     }
 
+
+    .ai-box{display:flex;gap:10px;align-items:stretch}
+    .ai-box textarea{flex:1;min-height:92px;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;outline:none}
+    .ai-box textarea:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.16)}
+    .ai-send{width:120px;height:auto;min-height:92px}
+    .ai-result{margin-top:12px;padding:14px;border-radius:14px;background:#f8fafc;border:1px solid var(--line);white-space:pre-wrap;line-height:1.65;font-size:14px;display:none}
+    .ai-tip{margin-top:8px;color:var(--muted);font-size:12px}
+    @media(max-width:760px){.ai-box{flex-direction:column}.ai-send{width:100%;min-height:44px}}
   </style>
 </head>
 <body>
@@ -385,6 +393,16 @@
         <button type="submit">添加</button>
       </div>
     </form>
+  </section>
+
+  <section class="card">
+    <h2>🤖 AI 收入助手</h2>
+    <div class="ai-box">
+      <textarea id="aiInput" placeholder="例如：今天收入120 / 分析最近5天 / 按现在趋势到9月20日能赚多少"></textarea>
+      <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
+    </div>
+    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；输入“今天收入120”时会自动保存今天的收入。</div>
+    <div class="ai-result" id="aiResult"></div>
   </section>
 
   <section class="card">
@@ -773,6 +791,41 @@
       btn.disabled = false;
       btn.textContent = '保存计划';
     }
+  });
+
+  async function askIncomeAI(){
+    const input = document.getElementById('aiInput');
+    const btn = document.getElementById('aiSendBtn');
+    const result = document.getElementById('aiResult');
+    const message = input.value.trim();
+    if(!message) return;
+
+    btn.disabled = true;
+    btn.textContent = '分析中...';
+    result.style.display = 'block';
+    result.textContent = '正在分析你的收入数据…';
+
+    try{
+      const data = await apiRequest('/api/ai', {
+        method:'POST',
+        body:JSON.stringify({ message })
+      });
+      result.textContent = data.reply || 'AI 没有返回内容。';
+      if(data.recorded){
+        await loadRecords();
+      }
+      input.value = '';
+    }catch(err){
+      result.textContent = 'AI 请求失败：' + err.message;
+    }finally{
+      btn.disabled = false;
+      btn.textContent = '发送分析';
+    }
+  }
+
+  document.getElementById('aiSendBtn').addEventListener('click', askIncomeAI);
+  document.getElementById('aiInput').addEventListener('keydown', e=>{
+    if((e.ctrlKey || e.metaKey) && e.key === 'Enter') askIncomeAI();
   });
 
   document.getElementById('clearBtn').addEventListener('click', async ()=>{
