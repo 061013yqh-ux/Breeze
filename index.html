@@ -183,10 +183,15 @@
       border-radius:7px 7px 3px 3px;
       transition:height .35s ease;
       position:relative;
+      cursor:pointer;
+      touch-action:manipulation;
+      outline:none;
     }
     .chart-bar.income-bar{background:var(--green)}
     .chart-bar.expense-bar{background:var(--red)}
-    .chart-bar:hover::after{
+    .chart-bar:hover::after,
+    .chart-bar.show-value::after,
+    .chart-bar:focus-visible::after{
       content:attr(data-value);
       position:absolute;
       bottom:calc(100% + 6px);
@@ -197,8 +202,11 @@
       color:#fff;
       border-radius:7px;
       padding:5px 7px;
-      font-size:10px;
-      z-index:5;
+      font-size:12px;
+      font-weight:700;
+      z-index:20;
+      pointer-events:none;
+      box-shadow:0 4px 14px rgba(17,24,39,.18);
     }
     .chart-label{
       position:absolute;
@@ -656,10 +664,12 @@
         <div class="chart-group">
           <div class="chart-bar income-bar"
                style="height:${incomeHeight}%"
-               data-value="收入 ${fmt(m.income)}"></div>
+               data-value="${m.label} · 收入 ¥${fmt(m.income)}"
+               tabindex="0" role="button" aria-label="${m.label} 收入 ¥${fmt(m.income)}"></div>
           <div class="chart-bar expense-bar"
                style="height:${expenseHeight}%"
-               data-value="支出 ${fmt(m.expense)}"></div>
+               data-value="${m.label} · 支出 ¥${fmt(m.expense)}"
+               tabindex="0" role="button" aria-label="${m.label} 支出 ¥${fmt(m.expense)}"></div>
           <span class="chart-label">${m.label.replace('年','/').replace('月','')}</span>
         </div>`;
     }).join('');
@@ -673,6 +683,26 @@
           <div class="chart-main">${bars}</div>
         </div>
       </div>`;
+
+    const chartBars = [...container.querySelectorAll('.chart-bar')];
+    const toggleBarValue = (bar) => {
+      const willShow = !bar.classList.contains('show-value');
+      chartBars.forEach(b => b.classList.remove('show-value'));
+      if (willShow) bar.classList.add('show-value');
+    };
+    chartBars.forEach(bar => {
+      bar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleBarValue(bar);
+      });
+      bar.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleBarValue(bar);
+        }
+      });
+    });
+    container.addEventListener('click', () => chartBars.forEach(b => b.classList.remove('show-value')));
   }
 
   function escapeHtml(str){
