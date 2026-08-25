@@ -30,17 +30,7 @@ function extractIncome(message) {
 }
 
 function outputText(data) {
-  if (typeof data.output_text === "string" && data.output_text.trim()) {
-    return data.output_text.trim();
-  }
-
-  const out = [];
-  for (const item of data.output || []) {
-    for (const c of item.content || []) {
-      if (c.type === "output_text" && c.text) out.push(c.text);
-    }
-  }
-  return out.join("\n").trim();
+  return String(data?.choices?.[0]?.message?.content || "").trim();
 }
 
 function cfDiagnostics(context) {
@@ -51,8 +41,8 @@ function cfDiagnostics(context) {
     city: cf.city || null,
     region: cf.region || null,
     timezone: cf.timezone || null,
-    openai_key_configured: Boolean(context.env.OPENAI_API_KEY),
-    model: context.env.OPENAI_MODEL || "gpt-5.6-luna"
+    deepseek_key_configured: Boolean(context.env.DEEPSEEK_API_KEY),
+    model: context.env.DEEPSEEK_MODEL || "deepseek-v4-flash"
   };
 }
 
@@ -60,16 +50,16 @@ export async function onRequestGet(context) {
   return json({
     ok: true,
     diagnostic: cfDiagnostics(context),
-    note: "此诊断不会返回 OPENAI_API_KEY 的内容。"
+    note: "此诊断不会返回 DEEPSEEK_API_KEY 的内容。"
   });
 }
 
 export async function onRequestPost(context) {
   try {
-    if (!context.env.OPENAI_API_KEY) {
+    if (!context.env.DEEPSEEK_API_KEY) {
       return json({
         ok: false,
-        error: "还没有配置 OPENAI_API_KEY",
+        error: "还没有配置 DEEPSEEK_API_KEY",
         diagnostic: cfDiagnostics(context)
       }, 500);
     }
@@ -97,17 +87,21 @@ export async function onRequestPost(context) {
 
     const prompt = `你是一个中文个人收入分析助手。用户的网站保存了收入和支出记录。\n今天日期：${today}\n当前计划：${JSON.stringify(settings || {})}\n历史记录：${JSON.stringify(results || [])}\n用户消息：${message}\n${pendingRecord ? `如果本次 AI 请求成功，系统会保存：${pendingRecord.date} 收入 ¥${pendingRecord.amount}。回复开头请明确告诉用户“已记录”。` : "本次不会自动新增记录。"}\n请直接回答用户问题。涉及预测时说明计算依据；金额保留两位小数。不要编造数据库中不存在的数据。回答简洁、清楚。`;
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${context.env.OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${context.env.DEEPSEEK_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: context.env.OPENAI_MODEL || "gpt-5.6-luna",
-        reasoning: { effort: "low" },
-        input: prompt,
-        max_output_tokens: 900
+        model: context.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+        messages: [
+          { role: "system", content: "你是 Breeze 网站里的个人收入分析助手。请准确计算，使用简体中文，回答简洁清楚。" },
+          { role: "user", content: prompt }
+        ],
+        thinking: { type: "disabled" },
+        max_tokens: 900,
+        stream: false
       })
     });
 
@@ -119,8 +113,8 @@ export async function onRequestPost(context) {
     if (!response.ok) {
       return json({
         ok: false,
-        error: data?.error?.message || "OpenAI API 请求失败",
-        openai: {
+        error: data?.error?.message || "DeepSeek API 请求失败",
+        deepseek: {
           status: response.status,
           type: data?.error?.type || null,
           code: data?.error?.code || null,
