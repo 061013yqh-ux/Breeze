@@ -77,12 +77,13 @@
       height:44px;
       border-radius:12px;
       border:1px solid var(--line);
-      background:#f8fafc;
-      display:flex;
-      align-items:center;
+      background:#fff;
       padding:0 12px;
       font-size:15px;
       color:var(--text);
+    }
+    .date-display::-webkit-date-and-time-value{
+      text-align:left;
     }
     input:focus,select:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.16)}
     button{border:0;background:var(--primary);color:#fff;padding:0 16px;font-weight:700;cursor:pointer}
@@ -296,6 +297,41 @@
       min-width:0;
       box-sizing:border-box;
     }
+    .settings-grid input[type="month"]{
+      height:48px;
+      padding:0 12px;
+      text-align:center;
+      line-height:normal;
+      font-size:16px;
+    }
+    .settings-grid input[type="month"]::-webkit-date-and-time-value{
+      width:100%;
+      height:100%;
+      min-height:48px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      line-height:normal;
+      padding:0;
+      margin:0;
+    }
+    .settings-grid input[type="month"]::-webkit-datetime-edit{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:0;
+      margin:0;
+    }
+    .settings-grid input[type="month"]::-webkit-datetime-edit-fields-wrapper{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100%;
+    }
     @media(max-width:760px){
       .settings-grid{
         width:100%;
@@ -308,6 +344,7 @@
     }
 
 
+    .field-help{margin-top:6px;color:var(--muted);font-size:11px;line-height:1.4}
     .ai-box{display:flex;gap:10px;align-items:stretch}
     .ai-box textarea{flex:1;min-height:92px;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;outline:none}
     .ai-box textarea:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.16)}
@@ -379,8 +416,8 @@
     <form class="form" id="recordForm">
       <div>
         <label>日期</label>
-        <div id="dateDisplay" class="date-display"></div>
-        <input type="hidden" id="date">
+        <input type="date" id="date" class="date-display">
+        <div class="field-help">默认显示今天，可点击选择任意日期。</div>
       </div>
       <div>
         <label>类型</label>
@@ -404,12 +441,12 @@
   </section>
 
   <section class="card">
-    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v6</span></h2>
+    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v9</span></h2>
     <div class="ai-box">
       <textarea id="aiInput" placeholder="例如：今天收入500 / 午饭花了35 / 昨天工资收入2000 / 分析最近5天"></textarea>
       <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
     </div>
-    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；可直接输入“今天收入500”“午饭花了35”“昨天工资收入2000”。AI 请求成功后会自动记账并刷新明细。计划期外的记录也会保存并显示，但不会计入当前计划的月度统计。当前 AI 后端使用 DeepSeek API。</div>
+    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；可直接输入“今天收入500”“午饭花了35”“昨天工资收入2000”。AI 请求成功后会自动记账并刷新明细，并会结合当天收支给出一条简短、实用的今日建议。计划期外的记录也会保存并显示，但不会计入当前计划的月度统计。当前 AI 后端使用 DeepSeek API。</div>
     <div class="ai-result" id="aiResult"></div>
   </section>
 
@@ -751,6 +788,7 @@
       });
 
       e.target.reset();
+      document.getElementById('date')?.removeAttribute('data-user-changed');
       setToday();
       await loadRecords();
     } catch (err) {
@@ -904,21 +942,41 @@
     }
   });
 
-  function setToday(){
+  function todayISO(){
     const now = new Date();
-
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-
-    const iso = `${year}-${month}-${day}`;
-
-    document.getElementById('date').value = iso;
-    document.getElementById('dateDisplay').textContent =
-      `${year}年${Number(month)}月${Number(day)}日`;
+    return `${year}-${month}-${day}`;
   }
 
-  setToday();
+  const dateInputEl = document.getElementById('date');
+
+  function setToday(force = false){
+    if(!dateInputEl) return;
+    // 默认每天自动显示当天日期；但用户可以手动选择任意日期。
+    if(force || !dateInputEl.value){
+      dateInputEl.value = todayISO();
+    }
+  }
+
+  if(dateInputEl){
+    dateInputEl.addEventListener('change', ()=>{
+      dateInputEl.dataset.userSelected = '1';
+    });
+  }
+
+  setToday(true);
+  let lastAutoDate = todayISO();
+  setInterval(()=>{
+    const nowDate = todayISO();
+    if(nowDate !== lastAutoDate){
+      lastAutoDate = nowDate;
+      if(dateInputEl && !dateInputEl.dataset.userSelected){
+        dateInputEl.value = nowDate;
+      }
+    }
+  }, 60000);
   loadRecords();
 </script>
 </body>
