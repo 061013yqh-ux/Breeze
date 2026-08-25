@@ -396,12 +396,12 @@
   </section>
 
   <section class="card">
-    <h2>🤖 AI 收入助手</h2>
+    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v5</span></h2>
     <div class="ai-box">
-      <textarea id="aiInput" placeholder="例如：今天收入120 / 分析最近5天 / 按现在趋势到9月20日能赚多少"></textarea>
+      <textarea id="aiInput" placeholder="例如：今天收入500 / 午饭花了35 / 昨天工资收入2000 / 分析最近5天"></textarea>
       <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
     </div>
-    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；输入“今天收入120”时会在 AI 请求成功后保存今天的收入。失败时会显示安全诊断信息，不会显示 API Key。当前 AI 后端使用 DeepSeek API。</div>
+    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；可直接输入“今天收入500”“午饭花了35”“昨天工资收入2000”。AI 请求成功后会自动记账并刷新明细。计划期外的记录也会保存并显示，但不会计入当前计划的月度统计。当前 AI 后端使用 DeepSeek API。</div>
     <div class="ai-result" id="aiResult"></div>
   </section>
 
@@ -420,7 +420,7 @@
   </section>
 
   <section class="card">
-    <h2>收支明细</h2>
+    <h2>收支明细（全部记录）</h2>
     <div class="table-wrap">
       <table>
         <thead>
@@ -591,7 +591,8 @@
     renderChart();
 
     const body = document.getElementById('recordsBody');
-    const sorted = [...planRecords].sort((a,b)=>
+    // 明细始终显示全部记录；计划外记录仍会保存，只是不计入上方当前计划统计。
+    const sorted = [...records].sort((a,b)=>
       String(b.date).localeCompare(String(a.date)) || Number(b.id)-Number(a.id)
     );
 
@@ -600,7 +601,7 @@
     } else {
       body.innerHTML = sorted.map(r=>`
         <tr>
-          <td>${escapeHtml(r.date)}</td>
+          <td>${escapeHtml(r.date)}${(String(r.date).slice(0,7) < plan.start_month || String(r.date).slice(0,7) > plan.end_month) ? ' <span style="font-size:11px;color:#9ca3af">计划外</span>' : ''}</td>
           <td><span class="badge ${r.type==='income'?'in':'out'}">${r.type==='income'?'收入':'支出'}</span></td>
           <td class="${r.type==='income'?'income':'expense'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</td>
           <td>${escapeHtml(r.note || '-')}</td>
@@ -793,6 +794,17 @@
     }
   });
 
+  function renderAIText(text){
+    const esc = String(text || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return esc
+      .replace(/^###\s+(.+)$/gm, '<strong class="ai-heading">$1</strong>')
+      .replace(/^##\s+(.+)$/gm, '<strong class="ai-heading">$1</strong>')
+      .replace(/^#\s+(.+)$/gm, '<strong class="ai-heading">$1</strong>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^[-•]\s+(.+)$/gm, '• $1')
+      .replace(/\n/g, '<br>');
+  }
+
   async function askIncomeAI(){
     const input = document.getElementById('aiInput');
     const btn = document.getElementById('aiSendBtn');
@@ -810,10 +822,14 @@
         method:'POST',
         body:JSON.stringify({ message })
       });
-      result.textContent = data.reply || 'AI 没有返回内容。';
+      let reply = data.reply || 'AI 没有返回内容。';
       if(data.recorded){
+        const r = data.recorded;
+        const typeText = r.type === 'expense' ? '支出' : '收入';
+        reply = `✅ 已保存：${r.date} ${typeText} ¥${Number(r.amount).toFixed(2)}${r.note ? `（${r.note}）` : ''}\n\n` + reply;
         await loadRecords();
       }
+      result.innerHTML = renderAIText(reply);
       input.value = '';
     }catch(err){
       let detail = 'AI 请求失败：' + err.message;
