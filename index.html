@@ -396,7 +396,7 @@
   </section>
 
   <section class="card">
-    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v5</span></h2>
+    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v6</span></h2>
     <div class="ai-box">
       <textarea id="aiInput" placeholder="例如：今天收入500 / 午饭花了35 / 昨天工资收入2000 / 分析最近5天"></textarea>
       <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
@@ -823,10 +823,18 @@
         body:JSON.stringify({ message })
       });
       let reply = data.reply || 'AI 没有返回内容。';
-      if(data.recorded){
-        const r = data.recorded;
-        const typeText = r.type === 'expense' ? '支出' : '收入';
-        reply = `✅ 已保存：${r.date} ${typeText} ¥${Number(r.amount).toFixed(2)}${r.note ? `（${r.note}）` : ''}\n\n` + reply;
+      const saved = Array.isArray(data.recorded) ? data.recorded : (data.recorded ? [data.recorded] : []);
+      if(saved.length){
+        const lines = saved.map(r => {
+          const typeText = r.type === 'expense' ? '支出' : '收入';
+          return `✅ 已保存：${r.date} ${typeText} ¥${Number(r.amount).toFixed(2)}${r.note ? `（${r.note}）` : ''}`;
+        });
+        const income = saved.filter(r=>r.type==='income').reduce((n,r)=>n+Number(r.amount||0),0);
+        const expense = saved.filter(r=>r.type==='expense').reduce((n,r)=>n+Number(r.amount||0),0);
+        if(saved.length > 1 || (income > 0 && expense > 0)){
+          lines.push(`💰 本次净收入：¥${(income-expense).toFixed(2)}（收入 ¥${income.toFixed(2)} - 支出 ¥${expense.toFixed(2)}）`);
+        }
+        reply = lines.join('\n') + '\n\n' + reply;
         await loadRecords();
       }
       result.innerHTML = renderAIText(reply);
