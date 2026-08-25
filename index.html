@@ -822,7 +822,7 @@
         const diag = await diagRes.json();
         if(diag?.diagnostic){
           const d = diag.diagnostic;
-          detail += `\n\n诊断信息：\nCloudflare 国家/地区：${d.country || '未知'}\nCloudflare 数据中心：${d.colo || '未知'}\n城市：${d.city || '未知'}\n区域：${d.region || '未知'}\n时区：${d.timezone || '未知'}\nDeepSeek API Key：${d.deepseek_key_configured ? '已配置' : '未配置'}\n模型：${d.model || '未设置'}`;
+          detail += `\n\n诊断信息：\nCloudflare 国家/地区：${d.country || '未知'}\nCloudflare 数据中心：${d.colo || '未知'}\n城市：${d.city || '未知'}\n区域：${d.region || '未知'}\n时区：${d.timezone || '未知'}\nDeepSeek API Key：${d.deepseek_key_configured ? '已配置' : '未配置'}\n模型：${d.model || '未设置'}\n当前环境变量/绑定名称：${Array.isArray(d.env_keys) && d.env_keys.length ? d.env_keys.join(', ') : '未读取到任何名称'}\n代码要求的 Key 名称：${d.expected_key_name || 'DEEPSEEK_API_KEY'}`;
         }
       }catch(_){ }
       result.textContent = detail;
