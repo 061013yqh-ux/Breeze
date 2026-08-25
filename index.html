@@ -458,7 +458,7 @@
   </section>
 
   <section class="card">
-    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v10</span></h2>
+    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v10.1</span></h2>
     <div class="ai-box">
       <textarea id="aiInput" placeholder="例如：今天收入500 / 午饭花了35 / 昨天工资收入2000 / 分析最近5天"></textarea>
       <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
@@ -934,6 +934,13 @@
       });
       let reply = data.reply || 'AI 没有返回内容。';
       const saved = Array.isArray(data.recorded) ? data.recorded : (data.recorded ? [data.recorded] : []);
+      const backendVersion = data.backend_version || '旧版/未知';
+      const looksLikeBookkeeping = /\d/.test(message) && /(收入|赚|工资|支出|花|消费|午饭|晚饭|早餐|打车|购物|外卖|奶茶|房租|话费|网费|加油|停车)/.test(message);
+      if(backendVersion !== 'v10.1'){
+        reply = `⚠️ 当前网页是 v10.1，但 AI 后端仍是 ${backendVersion}。请确认 GitHub 的 functions/api/ai.js 也已覆盖上传。\n\n` + reply;
+      }else if(looksLikeBookkeeping && saved.length === 0){
+        reply = `⚠️ 后端 v10.1 已运行，但这句话没有识别出可保存的收支记录。\n识别数量：${Number(data.parsed_count || 0)}\n你可以把原话截图给我，我继续扩充识别规则。\n\n` + reply;
+      }
       if(saved.length){
         const lines = saved.map(r => {
           const typeText = r.type === 'expense' ? '支出' : '收入';
