@@ -41,7 +41,7 @@ function extractRecords(message) {
     if (/昨天|昨日/.test(clause)) date = localDateOffset(-1);
     else if (/前天/.test(clause)) date = localDateOffset(-2);
 
-    const expenseWords = /支出|花了|花费|消费|买了|付款|付了|吃饭|午饭|晚饭|早餐|购物|打车/;
+    const expenseWords = /支出|花了|花费|消费|买了|买|付款|付了|吃饭|午饭|晚饭|早餐|购物|打车|车费|外卖|奶茶|水|饮料|零食|电影|房租|话费|网费|加油|停车/;
     const incomeWords = /收入|赚了|赚到|赚|工资|到账|收款/;
     const isExpense = expenseWords.test(clause);
     const isIncome = incomeWords.test(clause);
@@ -153,7 +153,7 @@ export async function onRequestPost(context) {
       ).first();
     } catch (_) {}
 
-    const prompt = `你是一个中文个人收入分析助手。用户的网站保存了收入和支出记录。\n今天日期：${today}\n当前计划：${JSON.stringify(settings || {})}\n历史记录：${JSON.stringify(results || [])}\n用户消息：${message}\n${pendingRecords.length ? `如果本次 AI 请求成功，系统会保存这些记录：${pendingRecords.map(r => `${r.date} ${r.type === "income" ? "收入" : "支出"} ¥${r.amount}（${r.note}）`).join("；")}。系统会在 API 成功后自动写入数据库。` : "本次不会自动新增记录。"}\n请直接回答用户问题。涉及预测时说明计算依据；金额保留两位小数。不要编造数据库中不存在的数据。语气自然、生动一点，可以适量使用 emoji，但不要啰嗦。每次回答最后都单独加一行“💡 今日建议：……”，根据当天和近期真实收支给出一条具体、可执行的建议，例如支出偏多时建议控制非必要消费、收入不错时建议留出一部分储蓄；如果数据不足，就给一条温和的通用建议。不要训斥用户。`;
+    const prompt = `你是一个中文个人收入分析助手。用户的网站保存了收入和支出记录。\n今天日期：${today}\n当前计划：${JSON.stringify(settings || {})}\n历史记录：${JSON.stringify(results || [])}\n用户消息：${message}\n${pendingRecords.length ? `如果本次 AI 请求成功，系统会保存这些记录：${pendingRecords.map(r => `${r.date} ${r.type === "income" ? "收入" : "支出"} ¥${r.amount}（${r.note}）`).join("；")}。系统会在 API 成功后自动写入数据库。` : "本次不会自动新增记录。"}\n请直接回答用户问题。涉及预测时说明计算依据；金额保留两位小数。不要编造数据库中不存在的数据。语气自然、生动一点，可以适量使用 emoji，但不要啰嗦。若用户一句话包含多笔收支，分别说明并给出净额。每次回答最后都单独加一行“💡 今日建议：……”，根据当天和近期真实收支给出一条具体、可执行的建议，例如支出偏多时建议控制非必要消费、收入不错时建议留出一部分储蓄；如果数据不足，就给一条温和的通用建议。不要训斥用户。`;
 
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
