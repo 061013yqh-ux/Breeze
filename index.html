@@ -401,7 +401,7 @@
       <textarea id="aiInput" placeholder="例如：今天收入120 / 分析最近5天 / 按现在趋势到9月20日能赚多少"></textarea>
       <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
     </div>
-    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；输入“今天收入120”时会在 AI 请求成功后保存今天的收入。失败时会显示安全诊断信息，不会显示 API Key。</div>
+    <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；输入“今天收入120”时会在 AI 请求成功后保存今天的收入。失败时会显示安全诊断信息，不会显示 API Key。当前 AI 后端使用 DeepSeek API。</div>
     <div class="ai-result" id="aiResult"></div>
   </section>
 
@@ -822,7 +822,7 @@
         const diag = await diagRes.json();
         if(diag?.diagnostic){
           const d = diag.diagnostic;
-          detail += `\n\n诊断信息：\nCloudflare 国家/地区：${d.country || '未知'}\nCloudflare 数据中心：${d.colo || '未知'}\n城市：${d.city || '未知'}\n区域：${d.region || '未知'}\n时区：${d.timezone || '未知'}\nAPI Key：${d.openai_key_configured ? '已配置' : '未配置'}\n模型：${d.model || '未设置'}`;
+          detail += `\n\n诊断信息：\nCloudflare 国家/地区：${d.country || '未知'}\nCloudflare 数据中心：${d.colo || '未知'}\n城市：${d.city || '未知'}\n区域：${d.region || '未知'}\n时区：${d.timezone || '未知'}\nDeepSeek API Key：${d.deepseek_key_configured ? '已配置' : '未配置'}\n模型：${d.model || '未设置'}`;
         }
       }catch(_){ }
       result.textContent = detail;
