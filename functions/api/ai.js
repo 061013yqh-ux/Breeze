@@ -31,7 +31,7 @@ function extractRecords(message) {
   // 支持一条消息里同时出现多笔记录，例如：
   // “今天收入500，午饭花了35” => 收入500 + 支出35
   const clauses = raw
-    .split(/[，,；;。\n]+|然后|并且|以及/)
+    .split(/[，,；;。\n]+|然后|并且|以及|但是|不过|可是|但(?=\S)/)
     .map(x => x.trim())
     .filter(Boolean);
 
@@ -55,6 +55,7 @@ function extractRecords(message) {
       const amount = Number(matches[matches.length - 1][1]);
       if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) continue;
       let note = clause
+        .replace(/^(但是|不过|可是|但|然后|并且|以及)\s*/g, '')
         .replace(/今天|今日|昨天|昨日|前天/g, '')
         .replace(/[¥￥]?\s*\d+(?:\.\d{1,2})?\s*(?:元|块)?/g, '')
         .replace(/收入|支出|赚了|赚到|赚|花了|花费|消费|付款|付了|到账|收款/g, '')
@@ -69,12 +70,20 @@ function extractRecords(message) {
     for (const m of matches) {
       const amount = Number(m[1]);
       if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) continue;
-      const left = clause.slice(0, m.index + m[0].length);
+      const beforeAmount = clause.slice(0, m.index);
+      const segment = beforeAmount.split(/[，,；;。\n]+|然后|并且|以及|但是|不过|可是|但(?=\S)/).pop().trim();
       let t = null;
-      if (expenseWords.test(left)) t = "expense";
-      if (incomeWords.test(left)) t = "income";
+      if (expenseWords.test(segment)) t = "expense";
+      else if (incomeWords.test(segment)) t = "income";
       if (!t) continue;
-      out.push({ date, type: t, amount, note: t === "income" ? "AI收入助手" : "AI支出助手" });
+      let note = segment
+        .replace(/^(但是|不过|可是|但|然后|并且|以及)\s*/g, '')
+        .replace(/今天|今日|昨天|昨日|前天/g, '')
+        .replace(/收入|支出|赚了|赚到|赚|花了|花费|消费|付款|付了|到账|收款/g, '')
+        .replace(/[，,。.!！?？:：]/g, ' ').trim().replace(/\s+/g, ' ')
+        .slice(0, 30);
+      if (!note) note = t === "income" ? "AI收入助手" : "AI支出助手";
+      out.push({ date, type: t, amount, note });
     }
   }
 
