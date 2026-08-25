@@ -82,9 +82,10 @@
       font-size:15px;
       color:var(--text);
     }
-    .date-display::-webkit-date-and-time-value{
-      text-align:left;
-    }
+    .date-display{ text-align:center; }
+    .date-display::-webkit-date-and-time-value{ width:100%; text-align:center; }
+    .date-display::-webkit-datetime-edit{ width:100%; text-align:center; padding:0; }
+    .date-display::-webkit-datetime-edit-fields-wrapper{ width:100%; display:flex; justify-content:center; }
     input:focus,select:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.16)}
     button{border:0;background:var(--primary);color:#fff;padding:0 16px;font-weight:700;cursor:pointer}
     button:active{transform:translateY(1px)}
@@ -109,6 +110,13 @@
     .footer-note{color:var(--muted);font-size:12px;text-align:center;margin-top:8px}
     .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
     .ghost{background:#fff;color:#374151;border:1px solid var(--line);width:auto;height:36px;font-size:12px}
+    .today-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+    .today-grid .stat{padding:15px}.today-grid .num{font-size:20px}
+    .advice-card{background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:14px;line-height:1.6;margin-top:12px}
+    .advice-title{font-weight:800;margin-bottom:4px}.advice-text{color:#4b5563;font-size:14px}
+    .filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}.filter-btn{width:auto;height:34px;padding:0 12px;background:#fff;color:#374151;border:1px solid var(--line);font-size:12px}.filter-btn.active{background:#111827;color:#fff}
+    .chart-detail{margin-top:12px;padding:12px 14px;border-radius:12px;background:#f8fafc;border:1px solid var(--line);font-size:13px;display:none}
+    .progress-extra{margin-top:9px;color:#cbd5e1;font-size:12px}
 
 
     .settings-grid{
@@ -247,6 +255,7 @@
       .hero{padding:20px;border-radius:20px}
       .hero h1{font-size:22px}
       .grid{grid-template-columns:1fr}
+      .today-grid{grid-template-columns:repeat(2,1fr)}
       .settings-grid{grid-template-columns:1fr}
       .settings-grid button{width:100%}
       .form{
@@ -370,7 +379,15 @@
         <span id="remainText">还差 ¥15,000</span>
       </div>
       <div class="progress"><div id="progressBar"></div></div>
+      <div class="progress-extra" id="progressExtra">正在计算计划进度…</div>
     </div>
+  </section>
+
+  <section class="today-grid">
+    <div class="stat"><div class="label">今日收入</div><div class="num income" id="todayIncome">¥0.00</div></div>
+    <div class="stat"><div class="label">今日支出</div><div class="num expense" id="todayExpense">¥0.00</div></div>
+    <div class="stat"><div class="label">今日净收入</div><div class="num balance" id="todayNet">¥0.00</div></div>
+    <div class="stat"><div class="label">本月净收入</div><div class="num balance" id="thisMonthNet">¥0.00</div></div>
   </section>
 
   <section class="grid">
@@ -441,13 +458,14 @@
   </section>
 
   <section class="card">
-    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v9</span></h2>
+    <h2>🤖 AI 收入助手 <span style="font-size:12px;color:#6b7280;font-weight:600">v10</span></h2>
     <div class="ai-box">
       <textarea id="aiInput" placeholder="例如：今天收入500 / 午饭花了35 / 昨天工资收入2000 / 分析最近5天"></textarea>
       <button type="button" class="ai-send" id="aiSendBtn">发送分析</button>
     </div>
     <div class="ai-tip">AI 会读取当前计划和已保存的收支记录进行分析；可直接输入“今天收入500”“午饭花了35”“昨天工资收入2000”。AI 请求成功后会自动记账并刷新明细，并会结合当天收支给出一条简短、实用的今日建议。计划期外的记录也会保存并显示，但不会计入当前计划的月度统计。当前 AI 后端使用 DeepSeek API。</div>
     <div class="ai-result" id="aiResult"></div>
+    <div class="advice-card"><div class="advice-title">💡 今日建议</div><div class="advice-text" id="dailyAdvice">先记录今天的收支，我会根据真实数据给你一个小建议。</div></div>
   </section>
 
   <section class="card">
@@ -458,6 +476,7 @@
   <section class="card">
     <h2>每月收支图表</h2>
     <div id="chartContainer"></div>
+    <div class="chart-detail" id="chartDetail"></div>
     <div class="chart-legend">
       <span class="legend-item"><i class="legend-dot income-dot"></i>收入</span>
       <span class="legend-item"><i class="legend-dot expense-dot"></i>支出</span>
@@ -466,6 +485,9 @@
 
   <section class="card">
     <h2>收支明细（全部记录）</h2>
+    <div class="filters" id="recordFilters">
+      <button class="filter-btn active" data-filter="all" type="button">全部</button><button class="filter-btn" data-filter="income" type="button">收入</button><button class="filter-btn" data-filter="expense" type="button">支出</button><button class="filter-btn" data-filter="month" type="button">本月</button><button class="filter-btn" data-filter="today" type="button">今天</button>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -481,6 +503,7 @@
       </table>
     </div>
     <div class="actions">
+      <button class="ghost" id="undoBtn" type="button">撤销上一笔</button>
       <button class="ghost" id="clearBtn" type="button">清空全部记录</button>
     </div>
   </section>
@@ -492,6 +515,7 @@
   const API = '/api/records';
 
   let records = [];
+  let recordFilter = 'all';
   let plan = {
     goal: 15000,
     start_month: '2026-08',
@@ -608,6 +632,18 @@
 
     const balance = income - expense;
 
+    const today = todayISO();
+    const currentMonth = today.slice(0,7);
+    const todayRows = records.filter(r=>String(r.date)===today);
+    const ti = todayRows.filter(r=>r.type==='income').reduce((s,r)=>s+Number(r.amount),0);
+    const te = todayRows.filter(r=>r.type==='expense').reduce((s,r)=>s+Number(r.amount),0);
+    const monthRows = records.filter(r=>String(r.date).startsWith(currentMonth));
+    const mi = monthRows.filter(r=>r.type==='income').reduce((s,r)=>s+Number(r.amount),0);
+    const me = monthRows.filter(r=>r.type==='expense').reduce((s,r)=>s+Number(r.amount),0);
+    document.getElementById('todayIncome').textContent=fmt(ti); document.getElementById('todayExpense').textContent=fmt(te); document.getElementById('todayNet').textContent=fmt(ti-te); document.getElementById('thisMonthNet').textContent=fmt(mi-me);
+    const advice = te > ti && te > 0 ? `今天支出比收入多 ${fmt(te-ti)}，接下来尽量减少非必要消费。` : te > 0 ? `今天净收入 ${fmt(ti-te)}，可以把一部分先留作储蓄，剩余再安排消费。` : ti > 0 ? `今天有 ${fmt(ti)} 收入，建议先存下一部分，再考虑可选消费。` : '今天还没有收支记录，记一笔后我会按真实情况给建议。';
+    document.getElementById('dailyAdvice').textContent=advice;
+
     document.getElementById('incomeTotal').textContent = fmt(income);
     document.getElementById('expenseTotal').textContent = fmt(expense);
     document.getElementById('balanceTotal').textContent = fmt(balance);
@@ -616,8 +652,11 @@
     const pct = Math.max(0, Math.min(100, balance / goal * 100));
     document.getElementById('progressBar').style.width = pct + '%';
     document.getElementById('progressText').textContent = '已完成 ' + pct.toFixed(1) + '%';
-    document.getElementById('remainText').textContent =
-      balance >= goal ? '已达到目标 🎉' : '还差 ' + fmt(goal - balance);
+    document.getElementById('remainText').textContent = balance >= goal ? '已达到目标 🎉' : '还差 ' + fmt(goal - balance);
+    const elapsedMonths = Math.max(1, buildMonths(plan.start_month, currentMonth < plan.start_month ? plan.start_month : (currentMonth > plan.end_month ? plan.end_month : currentMonth)).length);
+    const avgNet = balance / elapsedMonths;
+    let eta = avgNet > 0 && balance < goal ? `按目前平均每月净存 ${fmt(avgNet)}，约还需 ${Math.ceil((goal-balance)/avgNet)} 个月` : (balance >= goal ? '目标已完成，继续保持 🎉' : '目前还无法估算完成时间，多记录一些收支后会更准确');
+    document.getElementById('progressExtra').textContent = `已存 ${fmt(balance)} / ${fmt(goal)} · ${eta}`;
 
     const monthKeys = getMonthKeys();
     const monthsEl = document.getElementById('months');
@@ -637,9 +676,11 @@
 
     const body = document.getElementById('recordsBody');
     // 明细始终显示全部记录；计划外记录仍会保存，只是不计入上方当前计划统计。
-    const sorted = [...records].sort((a,b)=>
-      String(b.date).localeCompare(String(a.date)) || Number(b.id)-Number(a.id)
-    );
+    let visibleRecords = [...records];
+    if(recordFilter==='income'||recordFilter==='expense') visibleRecords=visibleRecords.filter(r=>r.type===recordFilter);
+    if(recordFilter==='today') visibleRecords=visibleRecords.filter(r=>String(r.date)===todayISO());
+    if(recordFilter==='month') visibleRecords=visibleRecords.filter(r=>String(r.date).startsWith(todayISO().slice(0,7)));
+    const sorted = visibleRecords.sort((a,b)=> String(b.date).localeCompare(String(a.date)) || Number(b.id)-Number(a.id));
 
     if(!sorted.length){
       body.innerHTML = `<tr><td colspan="5" class="empty">还没有记录，先添加第一笔收入或支出吧。</td></tr>`;
@@ -701,11 +742,11 @@
         <div class="chart-group">
           <div class="chart-bar income-bar"
                style="height:${incomeHeight}%"
-               data-value="${m.label} · 收入 ¥${fmt(m.income)}"
+               data-month="${m.label}" data-income="${m.income}" data-expense="${m.expense}" data-value="${m.label} · 收入 ¥${fmt(m.income)}"
                tabindex="0" role="button" aria-label="${m.label} 收入 ¥${fmt(m.income)}"></div>
           <div class="chart-bar expense-bar"
                style="height:${expenseHeight}%"
-               data-value="${m.label} · 支出 ¥${fmt(m.expense)}"
+               data-month="${m.label}" data-income="${m.income}" data-expense="${m.expense}" data-value="${m.label} · 支出 ¥${fmt(m.expense)}"
                tabindex="0" role="button" aria-label="${m.label} 支出 ¥${fmt(m.expense)}"></div>
           <span class="chart-label">${m.label.replace('年','/').replace('月','')}</span>
         </div>`;
@@ -731,6 +772,7 @@
       bar.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleBarValue(bar);
+        const detail=document.getElementById('chartDetail'); const inc=Number(bar.dataset.income||0), exp=Number(bar.dataset.expense||0); detail.style.display='block'; detail.innerHTML=`<strong>${bar.dataset.month}</strong>　收入 <span class="income">${fmt(inc)}</span>　支出 <span class="expense">${fmt(exp)}</span>　净收入 <span class="balance">${fmt(inc-exp)}</span>`;
       });
       bar.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -748,8 +790,8 @@
     }[s]));
   }
 
-  async function removeRecord(id){
-    if (!confirm('确定删除这条记录吗？')) return;
+  async function removeRecord(id, skipConfirm=false){
+    if (!skipConfirm && !confirm('确定删除这条记录吗？')) return;
 
     try {
       await apiRequest(`${API}?id=${encodeURIComponent(id)}`, {
@@ -928,6 +970,10 @@
   document.getElementById('aiInput').addEventListener('keydown', e=>{
     if((e.ctrlKey || e.metaKey) && e.key === 'Enter') askIncomeAI();
   });
+
+  document.getElementById('recordFilters').addEventListener('click', e=>{ const b=e.target.closest('.filter-btn'); if(!b)return; recordFilter=b.dataset.filter; document.querySelectorAll('.filter-btn').forEach(x=>x.classList.toggle('active',x===b)); render(); });
+
+  document.getElementById('undoBtn').addEventListener('click', async ()=>{ const latest=[...records].sort((a,b)=>Number(b.id)-Number(a.id))[0]; if(!latest){alert('还没有可以撤销的记录。');return;} if(!confirm(`撤销上一笔：${latest.type==='income'?'收入':'支出'} ${fmt(latest.amount)}（${latest.note||'无备注'}）？`))return; await removeRecord(latest.id, true); });
 
   document.getElementById('clearBtn').addEventListener('click', async ()=>{
     if(!confirm('确定要清空服务器里的全部收支记录吗？此操作不能恢复。')) return;
