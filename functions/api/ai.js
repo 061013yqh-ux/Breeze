@@ -1,4 +1,4 @@
-const BACKEND_VERSION = "v13";
+const BACKEND_VERSION = "v14";
 
 function chineseDigit(ch) {
   return {零:0,〇:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9}[ch];
@@ -245,13 +245,80 @@ function previousMonth(key) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+const CATEGORIES = ["餐饮","交通","购物","娱乐","固定支出","其他"];
+const DEFAULT_BUDGETS = {"餐饮":0,"交通":0,"购物":0,"娱乐":0,"固定支出":0,"其他":0};
+
+function classifyCategory(note){
+  const s=String(note||"").toLowerCase();
+  if(/饭|餐|吃|外卖|奶茶|水|饮料|零食|早餐|午饭|晚饭|咖啡|水果/.test(s)) return "餐饮";
+  if(/打车|车费|公交|地铁|高铁|火车|机票|加油|停车|交通/.test(s)) return "交通";
+  if(/购物|衣|鞋|淘宝|京东|买|数码|手机|日用品/.test(s)) return "购物";
+  if(/电影|游戏|娱乐|唱歌|ktv|旅游|门票|会员/.test(s)) return "娱乐";
+  if(/房租|房贷|话费|网费|水费|电费|燃气|保险|固定/.test(s)) return "固定支出";
+  return "其他";
+}
+
+async function ensureFinanceTables(DB){
+  await DB.prepare(`CREATE TABLE IF NOT EXISTS finance_config (id INTEGER PRIMARY KEY CHECK(id=1), budgets_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`).run();
+  await DB.prepare(`INSERT OR IGNORE INTO finance_config(id,budgets_json) VALUES(1,'{}')`).run();
+  await DB.prepare(`CREATE TABLE IF NOT EXISTS ai_memory (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`).run();
+}
+
+async function loadFinanceConfig(DB){
+  await ensureFinanceTables(DB);
+  const row=await DB.prepare(`SELECT budgets_json FROM finance_config WHERE id=1`).first();
+  let b={}; try{b=JSON.parse(row?.budgets_json||'{}')}catch(_){ }
+  const {results}=await DB.prepare(`SELECT id,content,created_at FROM ai_memory ORDER BY id DESC LIMIT 30`).all();
+  return {budgets:{...DEFAULT_BUDGETS,...b},memories:results||[]};
+}
+
+function mean(a){ return a.length?a.reduce((x,y)=>x+y,0)/a.length:0; }
+function median(a){ if(!a.length)return 0; const b=[...a].sort((x,y)=>x-y),m=Math.floor(b.length/2); return b.length%2?b[m]:(b[m-1]+b[m])/2; }
+function stddev(a){ if(a.length<2)return 0; const m=mean(a); return Math.sqrt(mean(a.map(x=>(x-m)**2))); }
+
+function buildBudgetStatus(rows,budgets,currentMonth){
+  const spent=Object.fromEntries(CATEGORIES.map(c=>[c,0]));
+  for(const r of rows){ if(r.type==='expense' && String(r.date).startsWith(currentMonth)) spent[classifyCategory(r.note)]+=Number(r.amount||0); }
+  return CATEGORIES.map(category=>{
+    const budget=Number(budgets?.[category]||0), used=spent[category]||0;
+    return {category,budget,used,remaining:budget>0?budget-used:null,percent:budget>0?used/budget*100:null,status:budget<=0?'未设置':used>budget?'已超支':used>budget*.8?'接近上限':'正常'};
+  });
+}
+
+function buildAnomaly(rows,today){
+  const byDay={};
+  for(const r of rows){ if(r.type==='expense' && r.date<=today) byDay[r.date]=(byDay[r.date]||0)+Number(r.amount||0); }
+  const keys=Object.keys(byDay).sort();
+  const hist=keys.filter(k=>k!==today).slice(-30).map(k=>byDay[k]);
+  const current=byDay[today]||0, avg=mean(hist), sd=stddev(hist), med=median(hist);
+  const threshold=Math.max(avg+2*sd, med*2, 100);
+  return {today_expense:current, historical_days:hist.length, avg:avg, median:med, threshold, is_anomaly:hist.length>=5&&current>threshold, multiple:avg>0?current/avg:null};
+}
+
+function endOfMonthDate(month){ const [y,m]=month.split('-').map(Number); const d=new Date(Date.UTC(y,m,0)); return d.toISOString().slice(0,10); }
+function daysBetween(a,b){ return Math.max(0,Math.ceil((new Date(b+'T12:00:00Z')-new Date(a+'T12:00:00Z'))/86400000)); }
+
+function buildPrediction(snapshot){
+  const goal=Number(snapshot.plan?.goal||0), net=Number(snapshot.totals.net||0), remain=Math.max(0,goal-net);
+  const endMonth=snapshot.plan?.end_month; const endDate=endMonth?endOfMonthDate(endMonth):snapshot.today; const daysLeft=Math.max(1,daysBetween(snapshot.today,endDate)+1);
+  const daily30=snapshot.last_30_days.net/Math.max(1,Math.min(30,snapshot.last_30_days.count||30));
+  const daily7=snapshot.last_7_days.net/Math.max(1,Math.min(7,snapshot.last_7_days.count||7));
+  const normal=Math.max(0,(daily30*0.6+daily7*0.4));
+  const conservative=Math.max(0,normal*0.75), optimistic=Math.max(normal,normal*1.25);
+  const scenarios=[['保守',conservative],['正常',normal],['乐观',optimistic]].map(([name,daily])=>({name,daily_net:daily,projected_add:daily*daysLeft,projected_total:net+daily*daysLeft,can_reach:net+daily*daysLeft>=goal}));
+  const requiredDaily=remain/daysLeft;
+  const risk=remain<=0?'已完成':normal<=0?'高':normal>=requiredDaily?'低':normal>=requiredDaily*.8?'中':'高';
+  return {goal,current_net:net,remaining:remain,end_date:endDate,days_left:daysLeft,required_daily_net:requiredDaily,risk,scenarios};
+}
+
 function buildFinancialSnapshot(rows, settings, today) {
   const normalized = (rows || []).map(r => ({
     id: r.id,
     date: String(r.date || ""),
     type: r.type === "expense" ? "expense" : "income",
     amount: Number(r.amount || 0),
-    note: String(r.note || "")
+    note: String(r.note || ""),
+    category: classifyCategory(r.note)
   }));
 
   const currentMonth = today.slice(0, 7);
@@ -291,7 +358,9 @@ function buildFinancialSnapshot(rows, settings, today) {
   const goal = Number(settings?.goal || 0);
   const progress = goal > 0 ? totalNet / goal * 100 : 0;
 
-  return {
+  const budgetStatus = buildBudgetStatus(normalized, settings?.budgets || DEFAULT_BUDGETS, currentMonth);
+  const anomaly = buildAnomaly(normalized, today);
+  const base = {
     today,
     plan: settings || {},
     totals: { income: totalIncome, expense: totalExpense, net: totalNet },
@@ -303,8 +372,12 @@ function buildFinancialSnapshot(rows, settings, today) {
     monthly: byMonth,
     top_expenses_30d: topExpenses,
     goal_progress_percent: Math.max(0, progress),
-    recent_records: normalized.slice(-60)
+    recent_records: normalized.slice(-60),
+    budget_status: budgetStatus,
+    anomaly
   };
+  base.prediction = buildPrediction(base);
+  return base;
 }
 
 async function callDeepSeek(context, messages, maxTokens = 1200) {
@@ -390,7 +463,22 @@ export async function onRequestPost(context) {
       ).first();
     } catch (_) {}
 
-    const snapshot = buildFinancialSnapshot(results || [], settings || {}, today);
+    const financeConfig = await loadFinanceConfig(context.env.DB);
+    const snapshot = buildFinancialSnapshot(results || [], {...(settings || {}), budgets: financeConfig.budgets}, today);
+    snapshot.memories = financeConfig.memories.map(x => x.content);
+
+    if (mode === "period_reports") {
+      const prompt = `你是 Breeze 的财务报告管家。根据以下真实数据库快照生成“本周周报”和“本月月报”。
+快照：${JSON.stringify(snapshot)}
+用户长期记忆：${JSON.stringify(snapshot.memories)}
+要求：
+- 分成【本周周报】和【本月月报】两段。
+- 每段包含收入、支出、净收入、主要支出分类、预算状态、异常消费、目标预测和下一周期建议。
+- 数据不足就明确说数据不足，不编造。
+- 不用 Markdown 表格，适合手机阅读。`;
+      const data=await callDeepSeek(context,[{role:"system",content:"你负责基于真实数据库生成简洁、可执行的个人财务周报和月报。"},{role:"user",content:prompt}],1600);
+      return json({ok:true,backend_version:BACKEND_VERSION,mode:"period_reports",report:outputText(data)||"暂时无法生成报告。",snapshot,diagnostic:cfDiagnostics(context)});
+    }
 
     if (mode === "auto_manager") {
       const prompt = `你是 Breeze 的“全自动 AI 财务管家”。你已经直接读取了用户 D1 数据库的真实收支记录和计划设置。\n\n财务快照：\n${JSON.stringify(snapshot)}\n\n请主动完成一次财务体检，不需要用户提问。要求：\n1. 使用简体中文，适合手机阅读。\n2. 必须基于真实数据，不得编造。\n3. 先给“今日情况”，再给“本月情况”，再对比上月（上月没数据就明确说数据不足）。\n4. 分析最近7天和30天的收入、支出、净收入变化。\n5. 如果支出备注能反映类别，指出最近30天花费最高的1-3类。\n6. 结合计划目标，告诉用户当前进度以及按当前数据是否需要调整节奏。\n7. 给2-4条具体可执行建议，不要空泛，例如“今天非必要支出尽量控制在多少以内”；数据不足时就说需要继续记录。\n8. 不要使用 Markdown 表格。\n9. 最后一行必须严格使用：💡 今日建议：一句最重要、最具体的建议。\n10. 语气自然、有一点陪伴感，但不要训斥。`;
@@ -414,7 +502,22 @@ export async function onRequestPost(context) {
     if (!message) return json({ ok: false, error: "请输入内容" }, 400);
     const pendingRecords = extractRecords(message);
 
-    const prompt = `你是 Breeze 网站里的中文个人财务管家。你已经直接读取了 D1 数据库。\n今天日期：${today}\n财务快照：${JSON.stringify(snapshot)}\n用户消息：${message}\n${pendingRecords.length ? `系统识别到用户想新增这些记录：${pendingRecords.map(r => `${r.date} ${r.type === "income" ? "收入" : "支出"} ¥${r.amount}（${r.note}）`).join("；")}。前端会在本次 AI 请求成功后写入数据库。` : "本次没有识别到需要新增的收支记录。"}\n请像真正的财务管家一样回答：既回应用户问题，也结合数据库里的今日、本月、最近7天/30天情况给简短判断。涉及预测要说明依据；不要编造。用户在记账时，先确认识别到的每笔记录，再补一句对当天净收入的判断。最后单独一行“💡 今日建议：……”。不要输出 Markdown 表格。`;
+    // 自动记住明确的长期偏好/约束，例如“这个月我要少打车”“以后提醒我少购物”。
+    const memoryIntent = /(?:记住|以后|这个月|本月|接下来|提醒我|我要|我想).*(?:少|控制|不要|尽量|目标|预算|省)/.test(message);
+    let memorySaved = null;
+    if(memoryIntent && pendingRecords.length===0){
+      const content = message.replace(/^(请|帮我)?记住[:：]?/,'').trim().slice(0,120);
+      if(content){
+        const exists = financeConfig.memories.some(x => x.content === content);
+        if(!exists){
+          await context.env.DB.prepare(`INSERT INTO ai_memory(content) VALUES(?)`).bind(content).run();
+          memorySaved = content;
+          snapshot.memories = [content, ...snapshot.memories].slice(0,30);
+        }
+      }
+    }
+
+    const prompt = `你是 Breeze 网站里的中文个人财务管家。你已经直接读取了 D1 数据库。\n今天日期：${today}\n财务快照：${JSON.stringify(snapshot)}\n用户消息：${message}\n${pendingRecords.length ? `系统识别到用户想新增这些记录：${pendingRecords.map(r => `${r.date} ${r.type === "income" ? "收入" : "支出"} ¥${r.amount}（${r.note}）`).join("；")}。前端会在本次 AI 请求成功后写入数据库。` : "本次没有识别到需要新增的收支记录。"}\n请像真正的财务管家一样回答：既回应用户问题，也结合数据库里的今日、本月、最近7天/30天情况给简短判断。必须参考 budget_status、anomaly、prediction 和 memories。涉及预测要给保守/正常/乐观三档并说明依据；预算接近上限或异常消费要主动提醒；用户之前说过的偏好要延续。用户在记账时，先确认识别到的每笔记录，再补一句对当天净收入的判断。${memorySaved ? `本次已新增管家记忆：“${memorySaved}”，请明确告诉用户已经记住。` : ''} 最后单独一行“💡 今日建议：……”。不要输出 Markdown 表格。`;
 
     const data = await callDeepSeek(context, [
       { role: "system", content: "你是 Breeze 网站里的个人 AI 财务管家。你会读取真实数据库、分析趋势、辅助记账并给出具体建议。" },
@@ -426,6 +529,7 @@ export async function onRequestPost(context) {
       backend_version: BACKEND_VERSION,
       parsed_count: pendingRecords.length,
       parsed_records: pendingRecords,
+      memory_saved: memorySaved,
       reply: outputText(data) || "AI 暂时没有返回文字。",
       snapshot,
       diagnostic: cfDiagnostics(context)

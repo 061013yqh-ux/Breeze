@@ -1,3 +1,13 @@
+function classifyCategory(note){
+  const s=String(note||"").toLowerCase();
+  if(/饭|餐|吃|外卖|奶茶|水|饮料|零食|早餐|午饭|晚饭|咖啡|水果/.test(s)) return "餐饮";
+  if(/打车|车费|公交|地铁|高铁|火车|机票|加油|停车|交通/.test(s)) return "交通";
+  if(/购物|衣|鞋|淘宝|京东|买|数码|手机|日用品/.test(s)) return "购物";
+  if(/电影|游戏|娱乐|唱歌|ktv|旅游|门票|会员/.test(s)) return "娱乐";
+  if(/房租|房贷|话费|网费|水费|电费|燃气|保险|固定/.test(s)) return "固定支出";
+  return "其他";
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -55,7 +65,7 @@ export async function onRequestGet(context) {
 
     return json({
       ok: true,
-      records: results || [],
+      records: (results || []).map(r => ({...r, category: classifyCategory(r.note)})),
       settings
     });
   } catch (error) {
