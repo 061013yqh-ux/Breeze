@@ -1,4 +1,4 @@
-const BACKEND_VERSION = "v10.1";
+const BACKEND_VERSION = "v11";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -226,29 +226,15 @@ export async function onRequestPost(context) {
       }, response.status);
     }
 
-    const recorded = [];
-    for (const pendingRecord of pendingRecords) {
-      const result = await context.env.DB.prepare(
-        `INSERT INTO records (date, type, amount, note) VALUES (?, ?, ?, ?)`
-      ).bind(pendingRecord.date, pendingRecord.type, pendingRecord.amount, pendingRecord.note).run();
-
-      recorded.push({
-        id: result.meta?.last_row_id ?? null,
-        date: pendingRecord.date,
-        type: pendingRecord.type,
-        amount: pendingRecord.amount,
-        note: pendingRecord.note
-      });
-    }
-
-
+    // v11：AI 接口只负责理解和分析，不直接写 D1。
+    // 前端会把 parsed_records 逐条调用 /api/records 保存，
+    // 这样保存失败时能直接反馈，不会出现“AI说记了但数据库没新增”。
     return json({
       ok: true,
       backend_version: BACKEND_VERSION,
       parsed_count: pendingRecords.length,
       parsed_records: pendingRecords,
       reply: outputText(data) || "AI 暂时没有返回文字。",
-      recorded,
       diagnostic: cfDiagnostics(context)
     });
   } catch (error) {
