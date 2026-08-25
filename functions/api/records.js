@@ -77,11 +77,6 @@ export async function onRequestPost(context) {
       return json({ ok: false, error: "æ¥ææ ¼å¼ä¸æ­£ç¡®" }, 400);
     }
 
-    const recordMonth = date.slice(0, 7);
-    if (recordMonth < settings.start_month || recordMonth > settings.end_month) {
-      return json({ ok: false, error: "å½åæ¥æä¸å¨å­é±è®¡åæé´å" }, 400);
-    }
-
     if (!["income", "expense"].includes(type)) {
       return json({ ok: false, error: "æ¶æ¯ç±»åä¸æ­£ç¡®" }, 400);
     }
