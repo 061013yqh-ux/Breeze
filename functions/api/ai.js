@@ -1,4 +1,4 @@
-const BACKEND_VERSION = "v14";
+const BACKEND_VERSION = "v14.1";
 
 function chineseDigit(ch) {
   return {零:0,〇:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9}[ch];
@@ -144,7 +144,7 @@ function extractRecords(message) {
     let type = isExpense && !isIncome ? "expense" : (!isExpense && isIncome ? "income" : null);
 
     // 同一句若同时包含收入和支出关键词，则再按金额附近的关键词分别识别。
-    const matches = [...clause.matchAll(/[¥￥]?\s*([零〇一二两三四五六七八九十百千万点\d]+(?:元|块|块钱|圆|人民币|￥|¥)?)\s*(?:元|块)?/g)];
+    const matches = [...clause.matchAll(/[¥￥]?\s*((?:\d+(?:\.\d{1,2})?|[零〇一二两三四五六七八九十百千万点]+)(?:元|块钱|块|圆|人民币|￥|¥)?)\s*(?:元|块)?/g)];
     if (!matches.length) continue;
 
     if (type) {
@@ -153,7 +153,7 @@ function extractRecords(message) {
       let note = clause
         .replace(/^(但是|不过|可是|但|然后|并且|以及)\s*/g, '')
         .replace(/今天|今日|昨天|昨日|前天/g, '')
-        .replace(/[¥￥]?\s*[零〇一二两三四五六七八九十百千万点\d]+(?:元|块|块钱|圆|人民币)?/g, '')
+        .replace(/[¥￥]?\s*(?:\d+(?:\.\d{1,2})?|[零〇一二两三四五六七八九十百千万点]+)(?:元|块钱|块|圆|人民币)?/g, '')
         .replace(/收入|支出|赚了|赚到|赚|花了|花费|消费|付款|付了|到账|收款/g, '')
         .replace(/[，,。.!！?？:：]/g, ' ').trim().replace(/\s+/g, ' ')
         .slice(0, 30);
@@ -188,8 +188,8 @@ function extractRecords(message) {
   if (!out.length || (out.length === 1 && /收入|赚|工资/.test(raw) && /支出|花|消费|午饭|晚饭|打车|购物/.test(raw))) {
     const compact = raw.replace(/\s+/g, "");
     const patterns = [
-      { type: "income", re: /(?:收入|赚了|赚到|赚|工资|到账|收款)[^\d]{0,8}([零〇一二两三四五六七八九十百千万点\d]+(?:元|块|块钱|圆|人民币|￥|¥)?)/g },
-      { type: "expense", re: /(?:支出|花了|花费|消费|付款|付了|午饭|晚饭|早餐|打车|购物|外卖|奶茶|房租|话费|网费|加油|停车)[^\d]{0,8}([零〇一二两三四五六七八九十百千万点\d]+(?:元|块|块钱|圆|人民币|￥|¥)?)/g }
+      { type: "income", re: /(?:收入|赚了|赚到|赚|工资|到账|收款)[^\d]{0,8}((?:\d+(?:\.\d{1,2})?|[零〇一二两三四五六七八九十百千万点]+)(?:元|块钱|块|圆|人民币|￥|¥)?)/g },
+      { type: "expense", re: /(?:支出|花了|花费|消费|付款|付了|午饭|晚饭|早餐|打车|购物|外卖|奶茶|房租|话费|网费|加油|停车)[^\d]{0,8}((?:\d+(?:\.\d{1,2})?|[零〇一二两三四五六七八九十百千万点]+)(?:元|块钱|块|圆|人民币|￥|¥)?)/g }
     ];
     for (const p of patterns) {
       for (const m of compact.matchAll(p.re)) {
