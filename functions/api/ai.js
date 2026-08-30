@@ -1,4 +1,4 @@
-const BACKEND_VERSION = "v14.1";
+const BACKEND_VERSION = "v14.2";
 
 function chineseDigit(ch) {
   return {零:0,〇:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9}[ch];
@@ -238,6 +238,17 @@ function dateAddDays(iso, days) {
   }).format(d);
 }
 
+function naturalWeekRange(iso) {
+  // Natural week in UTC+8: Monday through Sunday.
+  // Using the date-only ISO string avoids Cloudflare server timezone affecting weekday calculations.
+  const d = new Date(`${iso}T12:00:00+08:00`);
+  const weekday = d.getUTCDay(); // +08:00 noon is still the same UTC calendar day
+  const daysFromMonday = weekday === 0 ? 6 : weekday - 1;
+  const start = dateAddDays(iso, -daysFromMonday);
+  const end = dateAddDays(start, 6);
+  return { start, end };
+}
+
 function previousMonth(key) {
   const [y, m] = key.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1, 1));
@@ -323,11 +334,14 @@ function buildFinancialSnapshot(rows, settings, today) {
 
   const currentMonth = today.slice(0, 7);
   const prevMonth = previousMonth(currentMonth);
-  const weekStart = dateAddDays(today, -6);
+  const recent7Start = dateAddDays(today, -6);
+  const naturalWeek = naturalWeekRange(today);
   const month30Start = dateAddDays(today, -29);
 
   const todayRows = normalized.filter(r => r.date === today);
-  const weekRows = normalized.filter(r => r.date >= weekStart && r.date <= today);
+  const recent7Rows = normalized.filter(r => r.date >= recent7Start && r.date <= today);
+  // Only include elapsed days of the current natural week; week_end is still exposed as Sunday.
+  const weekRows = normalized.filter(r => r.date >= naturalWeek.start && r.date <= today);
   const day30Rows = normalized.filter(r => r.date >= month30Start && r.date <= today);
   const curRows = normalized.filter(r => monthKey(r.date) === currentMonth);
   const prevRows = normalized.filter(r => monthKey(r.date) === prevMonth);
@@ -365,7 +379,8 @@ function buildFinancialSnapshot(rows, settings, today) {
     plan: settings || {},
     totals: { income: totalIncome, expense: totalExpense, net: totalNet },
     today_summary: { income: sumType(todayRows,"income"), expense: sumType(todayRows,"expense"), net: sumType(todayRows,"income") - sumType(todayRows,"expense"), count: todayRows.length },
-    last_7_days: { start: weekStart, income: sumType(weekRows,"income"), expense: sumType(weekRows,"expense"), net: sumType(weekRows,"income") - sumType(weekRows,"expense"), count: weekRows.length },
+    last_7_days: { start: recent7Start, end: today, income: sumType(recent7Rows,"income"), expense: sumType(recent7Rows,"expense"), net: sumType(recent7Rows,"income") - sumType(recent7Rows,"expense"), count: recent7Rows.length },
+    current_week: { start: naturalWeek.start, end: naturalWeek.end, through: today, income: sumType(weekRows,"income"), expense: sumType(weekRows,"expense"), net: sumType(weekRows,"income") - sumType(weekRows,"expense"), count: weekRows.length },
     last_30_days: { start: month30Start, income: sumType(day30Rows,"income"), expense: sumType(day30Rows,"expense"), net: sumType(day30Rows,"income") - sumType(day30Rows,"expense"), count: day30Rows.length },
     current_month: { key: currentMonth, income: sumType(curRows,"income"), expense: sumType(curRows,"expense"), net: sumType(curRows,"income") - sumType(curRows,"expense"), count: curRows.length },
     previous_month: { key: prevMonth, income: sumType(prevRows,"income"), expense: sumType(prevRows,"expense"), net: sumType(prevRows,"income") - sumType(prevRows,"expense"), count: prevRows.length },
@@ -473,6 +488,8 @@ export async function onRequestPost(context) {
 用户长期记忆：${JSON.stringify(snapshot.memories)}
 要求：
 - 分成【本周周报】和【本月月报】两段。
+- “本周”必须严格使用快照 current_week：星期一到星期日为一个自然周；如果本周尚未结束，只统计周一到今天，并明确显示自然周日期范围。
+- 不得把 last_7_days（滚动最近7天）误称为“本周”。
 - 每段包含收入、支出、净收入、主要支出分类、预算状态、异常消费、目标预测和下一周期建议。
 - 数据不足就明确说数据不足，不编造。
 - 不用 Markdown 表格，适合手机阅读。`;
